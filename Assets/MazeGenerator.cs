@@ -8,34 +8,79 @@ public class MazeGenerator : MonoBehaviour
     [SerializeField] 
     private MazeCell _mazeCellPrefab;
 
-    [SerializeField]
+    // [SerializeField]
     private int _mazeWidth; //number of cells in x direction
-    [SerializeField]
-    private int _mazeDepth; //number of cells in z direction
-
+    // [SerializeField]
+    private int _mazeHeight; //number of cells in z direction
+    // [SerializeField]
+    private float _generationSpeed; //speed of maze generation
     private MazeCell[,] _mazeGrid; 
+    private bool _isGenerating = false;
+    // fixes indexoutofrange exception and null reference error by resetting the maze
+    private int _currentMazeWidth;
+    private int _currentMazeHeight;
+    private Coroutine _mazeGenerationCoroutine;
 
-    //TODO: make the width and depth of the maze configurable by user
-    //TODO: Start the maze generation process when a button is pressed
-    //TODO: Add a camera to the scene and move it to a position where the whole maze is visible
-    //TODO: speed of generation can be controlled by user
-    //TODO: Add a way to reset the maze and generate a new one
-    //TODO: uneven maze width and depth
-    IEnumerator Start()
+
+    //speed of generation can be controlled by user
+    public void SetTimeValue(int timeValue)
     {
-        _mazeGrid = new MazeCell[_mazeWidth, _mazeDepth];
+        _generationSpeed = timeValue;
+    }
+    //make the width and Height of the maze configurable by user
+    public void SetWidthValue(int widthValue)
+    {
+        _mazeWidth = widthValue;
+    }
+    public void SetHeightValue(int heightValue)
+    {
+        _mazeHeight = heightValue;
+    }
+    //TODO: Add a camera to the scene and move it to a position where the whole maze is visible
+    //TODO: uneven maze width and Height
+
+    //Start the maze generation process when a button is pressed
+    public void StartMazeGeneration()
+    {
+        if (!_isGenerating)
+        {
+            _isGenerating = true;
+            _mazeGenerationCoroutine = StartCoroutine(Starting());
+        }
+    }
+    public void StopMazeGeneration()
+    {
+        if (_mazeGenerationCoroutine != null)
+        {
+            StopCoroutine(_mazeGenerationCoroutine);
+            _mazeGenerationCoroutine = null;
+        }
+        _isGenerating = false;
+    }
+    //TODO: Add a way to reset the maze and generate a new one
+    public void ResetMazeGeneration()
+    {
+        StopMazeGeneration();
+        StartCoroutine(ResetAndStartMaze());
+    }
+    IEnumerator Starting()
+    {
+        ResetMaze();
+        _mazeGrid = new MazeCell[_mazeWidth, _mazeHeight];
+        _currentMazeWidth = _mazeWidth;
+        _currentMazeHeight = _mazeHeight;
 
         for (int x = 0; x < _mazeWidth; x++)
         {
-            for (int z = 0; z < _mazeDepth; z++)
+            for (int z = 0; z < _mazeHeight; z++)
             {
                 _mazeGrid[x, z] = Instantiate(_mazeCellPrefab, new Vector3(x, 0, z), Quaternion.identity); //specifies no rotation, places cell next to each other 
             }
         }
-
-        yield return GenerateMaze(null, _mazeGrid[0, 0]);
+        _mazeGenerationCoroutine = StartCoroutine(GenerateMaze(null, _mazeGrid[0, 0]));
+        yield return _mazeGenerationCoroutine;
     }
-
+    //eventually hits unity's overstack..TODO: fix 
     private IEnumerator GenerateMaze(MazeCell previousCell, MazeCell currentCell)
     {
         currentCell.Visit();
@@ -58,13 +103,14 @@ public class MazeGenerator : MonoBehaviour
     private MazeCell GetNextUnvisitedeCell(MazeCell currentCell)
     {
         var unvisitedCells = GetUnvisitedCells(currentCell).ToList();
-        return unvisitedCells.OrderBy(c => Random.Range(0, 10)).FirstOrDefault();
-        // if(unvisitedCells.Count == 0)
-        // {
-        //     return null;
-        // }
-        // int randomIndex = Random.Range(0, unvisitedCells.Count);
-        // return unvisitedCells[randomIndex];
+        if (unvisitedCells.Count > 0)
+        {
+            return unvisitedCells.OrderBy(c => Random.Range(0, 10)).FirstOrDefault(c => c != null);
+        }
+        else
+        {
+            return null;
+        }
     }
 
     private IEnumerable<MazeCell> GetUnvisitedCells(MazeCell currentCell)
@@ -91,7 +137,7 @@ public class MazeGenerator : MonoBehaviour
                 yield return cellToLeft;
             }
         }
-        if (z + 1 < _mazeDepth)
+        if (z + 1 < _mazeHeight)
         {
             var cellToFront = _mazeGrid[x, z + 1];
 
@@ -149,6 +195,33 @@ public class MazeGenerator : MonoBehaviour
         }
         
 
+    }
+    public void ResetMaze()
+    {
+        // Check if _mazeGrid is not null
+        if (_mazeGrid != null)
+        {
+            // Destroy all the existing maze cells
+            for (int x = 0; x < _mazeWidth; x++)
+            {
+                for (int z = 0; z < _mazeHeight; z++)
+                {
+                    if (_mazeGrid[x, z] != null)
+                    {
+                        Destroy(_mazeGrid[x, z].gameObject);
+                        _mazeGrid[x, z] = null;
+                    }
+                }
+            }
+        }
+    }
+    private IEnumerator ResetAndStartMaze()
+    {
+        ResetMaze();
+        // Wait until the end of frame to ensure all MazeCells are destroyed
+        yield return new WaitForEndOfFrame();
+
+        _mazeGenerationCoroutine = StartCoroutine(Starting());
     }
     // Update is called once per frame
     void Update()
